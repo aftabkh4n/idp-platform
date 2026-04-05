@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>dotnet-Idp.Worker-ca44b0b2-1024-4a3b-8f27-fc7cdd2d514f</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Idp.Core\Idp.Core.csproj" />
+    <ProjectReference Include="..\Idp.Infrastructure\Idp.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>
