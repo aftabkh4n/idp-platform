@@ -19,6 +19,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Idp.Core\Idp.Core.csproj" />
     <ProjectReference Include="..\Idp.Infrastructure\Idp.Infrastructure.csproj" />
+    <ProjectReference Include="..\Idp.Worker\Idp.Worker.csproj" />
   </ItemGroup>
 
 </Project>

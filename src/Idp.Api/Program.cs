@@ -2,6 +2,8 @@ using Idp.Core.Interfaces;
 using Idp.Core.Models;
 using Idp.Infrastructure.Data;
 using Idp.Infrastructure.GitHub;
+using Idp.Infrastructure.Kubernetes;
+using Idp.Worker;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 using Serilog;
@@ -19,6 +21,12 @@ builder.Services.AddDbContext<IdpDbContext>(opt =>
 builder.Services.Configure<GitHubSettings>(
 builder.Configuration.GetSection("GitHub"));
 builder.Services.AddScoped<IGitHubService, GitHubService>();
+
+// Kubernetes integration
+builder.Services.AddScoped<IKubernetesService, KubernetesService>();
+
+// Background worker — runs the provisioning pipeline
+builder.Services.AddHostedService<ProvisioningWorker>();
 
 builder.Services.AddOpenApi();
 builder.Services.AddControllers();
