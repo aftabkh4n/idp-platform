@@ -1,0 +1,17 @@
+# Build output
+**/bin/
+**/obj/
+
+# Secrets - never commit real appsettings
+src/Idp.Api/appsettings.json
+
+# Visual Studio
+*.user
+.vs/
+
+# Rider
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

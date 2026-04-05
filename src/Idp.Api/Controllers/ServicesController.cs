@@ -1,3 +1,4 @@
+using Idp.Core.Interfaces;
 using Idp.Core.Models;
 using Idp.Infrastructure.Data;
 using Microsoft.AspNetCore.Mvc;
@@ -7,9 +8,11 @@ namespace Idp.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class ServicesController(IdpDbContext db, ILogger<ServicesController> logger) : ControllerBase
+public class ServicesController(
+    IdpDbContext db,
+    IGitHubService gitHub,
+    ILogger<ServicesController> logger) : ControllerBase
 {
-    // POST /api/services — create a new service (returns immediately, provisioning is async)
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] ServiceRequest request)
     {
@@ -28,16 +31,42 @@ public class ServicesController(IdpDbContext db, ILogger<ServicesController> log
         db.Services.Add(service);
         await db.SaveChangesAsync();
 
-        // We return 202 Accepted — the work happens in the background
+        // Kick off GitHub provisioning (we'll move this to background worker in Week 3)
+        try
+        {
+            service.Status = ProvisioningStatus.CreatingRepo;
+            await db.SaveChangesAsync();
+
+            var repoUrl = await gitHub.CreateServiceRepoAsync(
+                request.Name,
+                request.Language,
+                request.Description ?? $"Service provisioned by IDP Platform");
+
+            service.RepoUrl = repoUrl;
+            service.Status  = ProvisioningStatus.Deployed;
+            await db.SaveChangesAsync();
+
+            logger.LogInformation("Service {Name} provisioned at {Url}",
+                request.Name, repoUrl);
+        }
+        catch (Exception ex)
+        {
+            service.Status       = ProvisioningStatus.Failed;
+            service.ErrorMessage = ex.Message;
+            await db.SaveChangesAsync();
+
+            logger.LogError(ex, "Failed to provision service {Name}", request.Name);
+        }
+
         return Accepted(new
         {
             service.Id,
             service.Status,
+            service.RepoUrl,
             StatusUrl = $"/api/services/{service.Id}"
         });
     }
 
-    // GET /api/services — list all services
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
@@ -47,7 +76,6 @@ public class ServicesController(IdpDbContext db, ILogger<ServicesController> log
         return Ok(services);
     }
 
-    // GET /api/services/{id} — check provisioning status
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id)
     {
