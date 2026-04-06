@@ -1,3 +1,5 @@
+using Idp.Api.Hubs;
+using Idp.Api.Services;
 using Idp.Core.Interfaces;
 using Idp.Core.Models;
 using Idp.Infrastructure.Data;
@@ -17,20 +19,19 @@ builder.Host.UseSerilog((ctx, cfg) =>
 builder.Services.AddDbContext<IdpDbContext>(opt =>
     opt.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
 
-// GitHub integration
-builder.Services.Configure<GitHubSettings>(
-builder.Configuration.GetSection("GitHub"));
-builder.Services.AddScoped<IGitHubService, GitHubService>();
-
-// Kubernetes integration
-builder.Services.AddScoped<IKubernetesService, KubernetesService>();
-
-// Background worker — runs the provisioning pipeline
-builder.Services.AddHostedService<ProvisioningWorker>();
-
 builder.Services.AddOpenApi();
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
+
+// GitHub + Kubernetes + SignalR notifier
+builder.Services.Configure<GitHubSettings>(
+    builder.Configuration.GetSection("GitHub"));
+builder.Services.AddScoped<IGitHubService,    GitHubService>();
+builder.Services.AddScoped<IKubernetesService, KubernetesService>();
+builder.Services.AddScoped<IStatusNotifier,   SignalRStatusNotifier>();
+
+// Background worker
+builder.Services.AddHostedService<ProvisioningWorker>();
 
 var app = builder.Build();
 
@@ -40,10 +41,15 @@ using (var scope = app.Services.CreateScope())
     db.Database.Migrate();
 }
 
-
-
 app.MapOpenApi();
-app.MapScalarApiReference(); // API docs live at /scalar/v1
+app.MapScalarApiReference();
+
+// Serve the dashboard at http://localhost:5107/
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
+// SignalR hub endpoint
+app.MapHub<ProvisioningHub>("/hubs/provisioning");
 
 app.MapControllers();
 

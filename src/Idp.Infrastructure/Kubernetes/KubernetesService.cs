@@ -62,11 +62,11 @@ public class KubernetesService(ILogger<KubernetesService> logger) : IKubernetesS
     }
 
     private static async Task CreateDeploymentAsync(
-        k8s.Kubernetes client,
-        string ns,
-        string serviceName,
-        string image,
-        CancellationToken ct)
+    k8s.Kubernetes client,
+    string ns,
+    string serviceName,
+    string image,
+    CancellationToken ct)
     {
         var deployment = new V1Deployment
         {
@@ -101,13 +101,12 @@ public class KubernetesService(ILogger<KubernetesService> logger) : IKubernetesS
                                 {
                                     new() { ContainerPort = 8080 }
                                 },
-                                // Health checks so K8s knows when the pod is ready
                                 ReadinessProbe = new V1Probe
                                 {
                                     HttpGet = new V1HTTPGetAction
                                     {
-                                        Path   = "/healthz",
-                                        Port   = 8080
+                                        Path = "/healthz",
+                                        Port = 8080
                                     },
                                     InitialDelaySeconds = 5,
                                     PeriodSeconds       = 10
@@ -119,8 +118,18 @@ public class KubernetesService(ILogger<KubernetesService> logger) : IKubernetesS
             }
         };
 
-        await client.AppsV1.CreateNamespacedDeploymentAsync(
-            deployment, ns, cancellationToken: ct);
+        try
+        {
+            await client.AppsV1.CreateNamespacedDeploymentAsync(
+                deployment, ns, cancellationToken: ct);
+        }
+        catch (k8s.Autorest.HttpOperationException ex)
+            when (ex.Response.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            // Already exists — replace it with the new definition
+            await client.AppsV1.ReplaceNamespacedDeploymentAsync(
+                deployment, serviceName, ns, cancellationToken: ct);
+        }
     }
 
     private static async Task CreateK8sServiceAsync(
@@ -143,8 +152,16 @@ public class KubernetesService(ILogger<KubernetesService> logger) : IKubernetesS
             }
         };
 
-        await client.CoreV1.CreateNamespacedServiceAsync(
-            service, ns, cancellationToken: ct);
+        try
+        {
+            await client.CoreV1.CreateNamespacedServiceAsync(
+                service, ns, cancellationToken: ct);
+        }
+        catch (k8s.Autorest.HttpOperationException ex)
+            when (ex.Response.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            // Already exists — skip, it's fine
+        }
     }
 
     private static async Task CreateIngressAsync(
@@ -192,7 +209,15 @@ public class KubernetesService(ILogger<KubernetesService> logger) : IKubernetesS
             }
         };
 
-        await client.NetworkingV1.CreateNamespacedIngressAsync(
-            ingress, ns, cancellationToken: ct);
+        try
+        {
+            await client.NetworkingV1.CreateNamespacedIngressAsync(
+                ingress, ns, cancellationToken: ct);
+        }
+        catch (k8s.Autorest.HttpOperationException ex)
+            when (ex.Response.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            // Already exists — skip, it's fine
+        }
     }
 }

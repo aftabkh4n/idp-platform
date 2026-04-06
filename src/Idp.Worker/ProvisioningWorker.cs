@@ -12,7 +12,6 @@ public class ProvisioningWorker(
     IServiceScopeFactory scopeFactory,
     ILogger<ProvisioningWorker> logger) : BackgroundService
 {
-    // How often to check for queued jobs
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(5);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -27,29 +26,31 @@ public class ProvisioningWorker(
     }
 
     private async Task ProcessQueuedJobsAsync(CancellationToken ct)
-{
-    using var scope  = scopeFactory.CreateScope();
-    var db           = scope.ServiceProvider.GetRequiredService<IdpDbContext>();
-    var gitHub       = scope.ServiceProvider.GetRequiredService<IGitHubService>();
-    var kubernetes   = scope.ServiceProvider.GetRequiredService<IKubernetesService>();
-
-    var queued = await db.Services
-        .Where(s => s.Status == ProvisioningStatus.Queued
-                 && s.Name != null
-                 && s.Name != "")   // skip any bad records
-        .ToListAsync(ct);
-
-    foreach (var service in queued)
     {
-        await ProvisionServiceAsync(service, db, gitHub, kubernetes, ct);
+        using var scope  = scopeFactory.CreateScope();
+        var db           = scope.ServiceProvider.GetRequiredService<IdpDbContext>();
+        var gitHub       = scope.ServiceProvider.GetRequiredService<IGitHubService>();
+        var kubernetes   = scope.ServiceProvider.GetRequiredService<IKubernetesService>();
+        var notifier     = scope.ServiceProvider.GetRequiredService<IStatusNotifier>();
+
+        var queued = await db.Services
+            .Where(s => s.Status == ProvisioningStatus.Queued
+                     && s.Name != null
+                     && s.Name != "")
+            .ToListAsync(ct);
+
+        foreach (var service in queued)
+        {
+            await ProvisionServiceAsync(service, db, gitHub, kubernetes, notifier, ct);
+        }
     }
-}
 
     private async Task ProvisionServiceAsync(
         ProvisionedService service,
         IdpDbContext db,
         IGitHubService gitHub,
         IKubernetesService kubernetes,
+        IStatusNotifier notifier,
         CancellationToken ct)
     {
         logger.LogInformation("Starting provisioning for {Name}", service.Name);
@@ -60,32 +61,38 @@ public class ProvisioningWorker(
             service.Status    = ProvisioningStatus.CreatingRepo;
             service.UpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
+            await notifier.NotifyStatusChangedAsync(
+                service.Id, service.Name, service.Status);
 
             var repoUrl = await gitHub.CreateServiceRepoAsync(
-                service.Name,
-                service.Language,
-                service.Description ?? $"{service.Name} service",
-                ct);
+                service.Name, service.Language,
+                service.Description ?? $"{service.Name} service", ct);
 
-            service.RepoUrl = repoUrl;
+            service.RepoUrl   = repoUrl;
+            service.UpdatedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync(ct);
+            await notifier.NotifyStatusChangedAsync(
+                service.Id, service.Name, service.Status, repoUrl: repoUrl);
 
             // Step 2 — Kubernetes
             service.Status    = ProvisioningStatus.DeployingK8s;
             service.UpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
+            await notifier.NotifyStatusChangedAsync(
+                service.Id, service.Name, service.Status, repoUrl: repoUrl);
 
             var serviceUrl = await kubernetes.DeployServiceAsync(
-                service.Name,
-                repoUrl,
-                ct);
+                service.Name, repoUrl, ct);
 
             service.ServiceUrl = serviceUrl;
             service.Status     = ProvisioningStatus.Deployed;
             service.UpdatedAt  = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
+            await notifier.NotifyStatusChangedAsync(
+                service.Id, service.Name, service.Status,
+                repoUrl: repoUrl, serviceUrl: serviceUrl);
 
-            logger.LogInformation("Provisioning complete for {Name} → {Url}",
-                service.Name, serviceUrl);
+            logger.LogInformation("Provisioning complete for {Name}", service.Name);
         }
         catch (Exception ex)
         {
@@ -94,8 +101,10 @@ public class ProvisioningWorker(
             service.Status       = ProvisioningStatus.Failed;
             service.ErrorMessage = ex.Message;
             service.UpdatedAt    = DateTime.UtcNow;
-
             await db.SaveChangesAsync(ct);
+            await notifier.NotifyStatusChangedAsync(
+                service.Id, service.Name, service.Status,
+                errorMessage: ex.Message);
         }
     }
 }

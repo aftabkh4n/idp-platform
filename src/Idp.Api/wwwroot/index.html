@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>IDP Platform</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid #1e2535;
+    }
+
+    header h1 { font-size: 1.4rem; font-weight: 600; letter-spacing: -0.02em; }
+    header h1 span { color: #6366f1; }
+
+    .connection-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #ef4444;
+      display: inline-block;
+      margin-right: 6px;
+      transition: background 0.3s;
+    }
+    .connection-dot.connected { background: #22c55e; }
+    .connection-status { font-size: 0.8rem; color: #64748b; display: flex; align-items: center; }
+
+    .form-card {
+      background: #1a1f2e;
+      border: 1px solid #1e2535;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .form-card h2 { font-size: 0.9rem; font-weight: 500; color: #94a3b8; margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .form-row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 12px; align-items: end; }
+
+    .field label { display: block; font-size: 0.75rem; color: #64748b; margin-bottom: 4px; }
+
+    .field input, .field select {
+      width: 100%;
+      background: #0f1117;
+      border: 1px solid #1e2535;
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: #e2e8f0;
+      font-size: 0.875rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .field input:focus, .field select:focus { border-color: #6366f1; }
+
+    button {
+      background: #6366f1;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 9px 20px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      white-space: nowrap;
+    }
+
+    button:hover { background: #4f46e5; }
+    button:active { transform: scale(0.98); }
+    button:disabled { background: #374151; cursor: not-allowed; }
+
+    .services-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+
+    .services-header h2 { font-size: 0.9rem; font-weight: 500; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .count-badge {
+      background: #1a1f2e;
+      border: 1px solid #1e2535;
+      border-radius: 20px;
+      padding: 2px 10px;
+      font-size: 0.75rem;
+      color: #64748b;
+    }
+
+    .services-grid { display: flex; flex-direction: column; gap: 10px; }
+
+    .service-card {
+      background: #1a1f2e;
+      border: 1px solid #1e2535;
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      transition: border-color 0.2s;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .service-card:hover { border-color: #2d3748; }
+
+    .service-icon {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      background: #0f1117;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+
+    .service-info { flex: 1; min-width: 0; }
+    .service-name { font-weight: 600; font-size: 0.95rem; margin-bottom: 3px; }
+    .service-meta { font-size: 0.75rem; color: #64748b; }
+
+    .service-links { display: flex; gap: 8px; }
+
+    .link-btn {
+      font-size: 0.75rem;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: #0f1117;
+      color: #94a3b8;
+      border: 1px solid #1e2535;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.15s;
+    }
+
+    .link-btn:hover { border-color: #6366f1; color: #6366f1; }
+
+    .status-badge {
+      font-size: 0.72rem;
+      font-weight: 500;
+      padding: 3px 10px;
+      border-radius: 20px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .status-queued       { background: #1e2535; color: #64748b; }
+    .status-creating_repo { background: #1e3a5f; color: #60a5fa; }
+    .status-deploying_k8s { background: #2d1b69; color: #a78bfa; }
+    .status-deployed     { background: #14532d; color: #4ade80; }
+    .status-failed       { background: #450a0a; color: #f87171; }
+
+    .progress-bar {
+      height: 2px;
+      background: #1e2535;
+      border-radius: 1px;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: 1px;
+      transition: width 0.5s ease;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem;
+      color: #374151;
+    }
+
+    .empty-state p { font-size: 0.875rem; margin-top: 0.5rem; }
+
+    @media (max-width: 700px) {
+      .form-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>IDP <span>Platform</span></h1>
+  <div class="connection-status">
+    <span class="connection-dot" id="dot"></span>
+    <span id="conn-label">Connecting...</span>
+  </div>
+</header>
+
+<div class="form-card">
+  <h2>Provision new service</h2>
+  <div class="form-row">
+    <div class="field">
+      <label>Service name</label>
+      <input id="svcName" type="text" placeholder="payments-api"/>
+    </div>
+    <div class="field">
+      <label>Language</label>
+      <select id="svcLang">
+        <option value="dotnet">.NET</option>
+        <option value="node">Node.js</option>
+        <option value="python">Python</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Description</label>
+      <input id="svcDesc" type="text" placeholder="What does this service do?"/>
+    </div>
+    <button id="provisionBtn" onclick="provision()">Provision →</button>
+  </div>
+</div>
+
+<div class="services-header">
+  <h2>Services</h2>
+  <span class="count-badge" id="countBadge">0 services</span>
+</div>
+
+<div class="services-grid" id="servicesGrid">
+  <div class="empty-state" id="emptyState">
+    <div style="font-size:2rem">🚀</div>
+    <p>No services yet. Provision your first one above.</p>
+  </div>
+</div>
+
+<script>
+const services = {};
+
+const statusConfig = {
+  queued:        { label: 'Queued',          icon: '⏳', progress: 5,   color: '#64748b' },
+  creating_repo: { label: 'Creating repo',   icon: '📁', progress: 35,  color: '#60a5fa' },
+  deploying_k8s: { label: 'Deploying',       icon: '☸️',  progress: 70,  color: '#a78bfa' },
+  deployed:      { label: 'Deployed',        icon: '✅', progress: 100, color: '#4ade80' },
+  failed:        { label: 'Failed',          icon: '❌', progress: 100, color: '#f87171' },
+};
+
+// Load existing services on page load
+async function loadServices() {
+  const res  = await fetch('/api/services');
+  const data = await res.json();
+  data.forEach(s => upsertServiceCard(s));
+}
+
+async function provision() {
+  const name = document.getElementById('svcName').value.trim();
+  const lang = document.getElementById('svcLang').value;
+  const desc = document.getElementById('svcDesc').value.trim();
+
+  if (!name) { alert('Please enter a service name'); return; }
+
+  const btn = document.getElementById('provisionBtn');
+  btn.disabled    = true;
+  btn.textContent = 'Provisioning...';
+
+  try {
+    const res = await fetch('/api/services', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ name, language: lang, owner: 'aftabkh4n', description: desc })
+    });
+
+    const data = await res.json();
+    upsertServiceCard({ id: data.id, name, language: lang, description: desc, status: data.status });
+    document.getElementById('svcName').value = '';
+    document.getElementById('svcDesc').value = '';
+  } catch (e) {
+    alert('Failed to provision: ' + e.message);
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = 'Provision →';
+  }
+}
+
+function upsertServiceCard(service) {
+  services[service.id] = service;
+
+  const existing = document.getElementById('card-' + service.id);
+  if (existing) {
+    updateCardStatus(service.id, service);
+    return;
+  }
+
+  const cfg  = statusConfig[service.status] || statusConfig.queued;
+  const lang = { dotnet: '🔵', node: '🟢', python: '🟡' }[service.language] || '⚙️';
+
+  const card = document.createElement('div');
+  card.className = 'service-card';
+  card.id        = 'card-' + service.id;
+  card.innerHTML = `
+    <div class="service-icon">${lang}</div>
+    <div class="service-info">
+      <div class="service-name">${service.name}</div>
+      <div class="service-meta">${service.language || ''} · ${service.description || ''}</div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="prog-${service.id}" style="width:${cfg.progress}%;background:${cfg.color}"></div>
+      </div>
+    </div>
+    <div class="service-links" id="links-${service.id}"></div>
+    <span class="status-badge status-${service.status}" id="badge-${service.id}">${cfg.label}</span>
+  `;
+
+  const grid = document.getElementById('servicesGrid');
+  document.getElementById('emptyState')?.remove();
+  grid.prepend(card);
+
+  updateCount();
+  if (service.repoUrl || service.serviceUrl) updateLinks(service.id, service);
+}
+
+function updateCardStatus(id, service) {
+  const cfg   = statusConfig[service.status] || statusConfig.queued;
+  const badge = document.getElementById('badge-' + id);
+  const prog  = document.getElementById('prog-'  + id);
+
+  if (badge) {
+    badge.textContent = cfg.label;
+    badge.className   = `status-badge status-${service.status}`;
+  }
+
+  if (prog) {
+    prog.style.width      = cfg.progress + '%';
+    prog.style.background = cfg.color;
+  }
+
+  updateLinks(id, service);
+}
+
+function updateLinks(id, service) {
+  const container = document.getElementById('links-' + id);
+  if (!container) return;
+
+  container.innerHTML = '';
+
+  if (service.repoUrl) {
+    const a = document.createElement('a');
+    a.href      = service.repoUrl;
+    a.target    = '_blank';
+    a.className = 'link-btn';
+    a.textContent = 'GitHub →';
+    container.appendChild(a);
+  }
+
+  if (service.serviceUrl) {
+    const a = document.createElement('a');
+    a.href      = service.serviceUrl;
+    a.target    = '_blank';
+    a.className = 'link-btn';
+    a.textContent = 'Service →';
+    container.appendChild(a);
+  }
+}
+
+function updateCount() {
+  const n = Object.keys(services).length;
+  document.getElementById('countBadge').textContent =
+    n + (n === 1 ? ' service' : ' services');
+}
+
+// SignalR connection
+const connection = new signalR.HubConnectionBuilder()
+  .withUrl('/hubs/provisioning')
+  .withAutomaticReconnect()
+  .build();
+
+connection.on('StatusChanged', data => {
+  upsertServiceCard({
+    id:           data.serviceId,
+    name:         data.serviceName,
+    status:       data.status,
+    repoUrl:      data.repoUrl,
+    serviceUrl:   data.serviceUrl,
+    errorMessage: data.errorMessage
+  });
+});
+
+connection.on('Connected', msg => console.log('SignalR:', msg));
+
+connection.onreconnecting(() => {
+  document.getElementById('dot').classList.remove('connected');
+  document.getElementById('conn-label').textContent = 'Reconnecting...';
+});
+
+connection.onreconnected(() => {
+  document.getElementById('dot').classList.add('connected');
+  document.getElementById('conn-label').textContent = 'Connected';
+});
+
+async function start() {
+  try {
+    await connection.start();
+    document.getElementById('dot').classList.add('connected');
+    document.getElementById('conn-label').textContent = 'Connected';
+  } catch (e) {
+    setTimeout(start, 3000);
+  }
+}
+
+loadServices();
+start();
+</script>
+</body>
+</html>
