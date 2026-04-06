@@ -40,6 +40,27 @@ can be built with clean, maintainable .NET code.
 | Logging | Serilog (structured JSON logs) |
 | API docs | Scalar |
 
+## NuGet package
+
+The GitHub provisioning module is available as a standalone NuGet package:
+```bash
+dotnet add package IdpPlatform.GitHub
+```
+```csharp
+var provisioner = new GitHubProvisioner(new GitHubProvisionerOptions
+{
+    Token        = "your-github-token",
+    Organisation = "your-github-username"
+});
+
+var result = await provisioner.CreateServiceRepoAsync(
+    serviceName: "payments-api",
+    language:    "dotnet",
+    description: "Handles payment processing");
+
+Console.WriteLine(result.RepoUrl);
+```
+
 ## Running locally
 
 **Prerequisites:** .NET 9, Docker Desktop
