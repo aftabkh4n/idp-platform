@@ -20,7 +20,7 @@ POST one request to `/api/services` and the platform automatically:
 ## Why I built this
 
 Most teams waste hours setting up the same boilerplate every time they 
-start a new service — creating a repo, writing a Dockerfile, configuring 
+start a new service, creating a repo, writing a Dockerfile, configuring 
 CI, setting up Kubernetes manifests. This platform automates all of that 
 with a single API call.
 

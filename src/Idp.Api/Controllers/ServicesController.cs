@@ -10,7 +10,6 @@ namespace Idp.Api.Controllers;
 [Route("api/[controller]")]
 public class ServicesController(
     IdpDbContext db,
-    IGitHubService gitHub,
     ILogger<ServicesController> logger) : ControllerBase
 {
     [HttpPost]
