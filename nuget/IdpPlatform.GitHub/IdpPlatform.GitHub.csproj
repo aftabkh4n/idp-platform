@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- NuGet package metadata -->
+    <PackageId>IdpPlatform.GitHub</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Aftab Khan</Authors>
+    <Company>Aftab Khan</Company>
+    <Description>
+      Automatically provision GitHub repositories with Dockerfiles and
+      CI pipelines from your .NET application. Part of the IDP Platform toolkit.
+    </Description>
+    <PackageTags>github;devops;idp;developer-platform;octokit;automation</PackageTags>
+    <PackageProjectUrl>https://github.com/aftabkh4n/idp-platform</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/aftabkh4n/idp-platform</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Octokit" Version="13.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>
