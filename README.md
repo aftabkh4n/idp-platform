@@ -4,6 +4,10 @@
 > microservices with a single API call — GitHub repo, Dockerfile, 
 > Kubernetes deployment, all created automatically.
 
+## Demo
+
+![IDP Platform Demo](docs/demo.gif)
+
 ## What it does
 
 POST one request to `/api/services` and the platform automatically:
@@ -12,6 +16,17 @@ POST one request to `/api/services` and the platform automatically:
 2. Adds a Dockerfile and GitHub Actions CI pipeline
 3. Deploys the service to Kubernetes (Deployment + Service + Ingress)
 4. Streams real-time provisioning status back via SignalR
+
+## Why I built this
+
+Most teams waste hours setting up the same boilerplate every time they 
+start a new service — creating a repo, writing a Dockerfile, configuring 
+CI, setting up Kubernetes manifests. This platform automates all of that 
+with a single API call.
+
+I built it to understand how internal developer platforms like Backstage 
+work under the hood, and to demonstrate that complex developer tooling 
+can be built with clean, maintainable .NET code.
 
 ## Tech stack
 
@@ -54,3 +69,20 @@ dotnet run --project src/Idp.Api
 | GET | `/api/services/{id}` | Check provisioning status |
 
 ## Project structure
+
+IdpPlatform/
+├── src/
+│   ├── Idp.Api/             # ASP.NET Core API — entry point
+│   ├── Idp.Core/            # Domain models + interfaces
+│   ├── Idp.Infrastructure/  # Database, EF Core, external clients
+│   └── Idp.Worker/          # Background provisioning pipeline
+└── README.md
+
+## Status
+
+| Task | Feature | Status |
+|---|---|---|
+| Task 1 | API skeleton + PostgreSQL + EF Core | ✅ Done |
+| Task 2 | GitHub integration — auto repo + Dockerfile + CI | ✅ Done |
+| Task 3 | Background worker + Kubernetes integration | ✅ Done |
+| Task 4 | SignalR real-time status + dashboard UI | ✅ Done |
