@@ -49,28 +49,26 @@ jobs:
       - name: AI Code Review
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          # Get the diff directly here to avoid escaping issues
-          DIFF=$(git diff origin/${{ github.base_ref }}...HEAD -- '*.cs' | head -c 6000)
-
-          if [ -z "$DIFF" ]; then
-            echo "No C# changes found." > review.md
-            exit 0
-          fi
-
-          # Use Python to build and send the request cleanly
           python3 << 'PYTHON'
           import urllib.request
           import json
           import os
 
-          diff = open('/dev/stdin').read() if False else os.popen(
-              "git diff origin/${{ github.base_ref }}...HEAD -- '*.cs' | head -c 6000"
+          base_ref = os.environ['BASE_REF']
+
+          # Get the diff using the base ref from environment
+          diff = os.popen(
+              f"git diff origin/{base_ref}...HEAD -- '*.cs' | head -c 6000"
           ).read()
 
           if not diff.strip():
-              open('review.md', 'w').write('No C# code changes detected.')
+              open('review.md', 'w').write('No C# code changes detected in this PR.')
+              print("No diff found")
               exit(0)
+
+          print(f"Diff length: {len(diff)} chars")
 
           payload = {
               "model": "gpt-4o-mini",
