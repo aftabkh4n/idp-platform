@@ -40,11 +40,12 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<IdpDbContext>();
     db.Database.Migrate();
 }
+// Enable OpenAPI/Swagger at 
 
 app.MapOpenApi();
 app.MapScalarApiReference();
 
-// Serve the dashboard at http://localhost:5107/
+// Serve the dashboard at http://localhost:0000/
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
