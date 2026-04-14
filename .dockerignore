@@ -1,0 +1,17 @@
+# Skip build output — the Docker build creates its own
+**/bin/
+**/obj/
+
+# Skip secrets — never bake these into the image
+**/appsettings.json
+**/appsettings.*.json
+!**/appsettings.example.json
+
+# Skip dev files
+.git/
+.github/
+.vs/
+.idea/
+**/*.user
+**/README.md
+**/docs/

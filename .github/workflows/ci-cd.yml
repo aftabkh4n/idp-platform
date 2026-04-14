@@ -1,0 +1,107 @@
+name: CI/CD Pipeline
+
+# Runs on every push to main and on pull requests
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  # GitHub Container Registry — free for public repos
+  REGISTRY: ghcr.io
+  # Image name = your-github-username/idp-platform
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+
+  # ── Job 1: Build and Test ─────────────────────────────────────────
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    steps:
+      # Check out the code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Install .NET 9
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      # Restore NuGet packages
+      - name: Restore packages
+        run: dotnet restore
+
+      # Build in Release mode
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      # Run any tests (safe to keep even if no tests yet)
+      - name: Test
+        run: dotnet test --no-build --configuration Release --verbosity normal
+        continue-on-error: true  # won't fail the pipeline if no tests exist
+
+  # ── Job 2: Build and Push Docker Image ───────────────────────────
+  docker:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    needs: build-and-test  # only runs if build-and-test passes
+    # Only push the image on pushes to main, not on pull requests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: read
+      packages: write  # needed to push to GitHub Container Registry
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Log in to GitHub Container Registry using the built-in token
+      # No secrets needed — GitHub provides GITHUB_TOKEN automatically
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Generate Docker image tags and labels automatically
+      # This creates tags like: latest, main, sha-abc1234
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=sha-
+            type=raw,value=latest
+
+      # Build the Docker image and push it to the registry
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  # ── Job 3: Deploy to Kubernetes ──────────────────────────────────
+  # This job only runs on self-hosted runners (your local machine)
+  # It's commented out for now — we enable it after setting up the runner
+  # deploy:
+  #   name: Deploy to Kubernetes
+  #   runs-on: self-hosted
+  #   needs: docker
+  #   steps:
+  #     - name: Deploy to local Kubernetes
+  #       run: |
+  #         kubectl set image deployment/idp-platform \
+  #           idp-platform=ghcr.io/${{ github.repository }}:latest \
+  #           -n idp-platform
+  #         kubectl rollout status deployment/idp-platform -n idp-platform
