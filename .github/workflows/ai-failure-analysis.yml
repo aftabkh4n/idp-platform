@@ -1,0 +1,89 @@
+name: AI Failure Analysis
+
+# Runs when the CI/CD pipeline fails
+on:
+  workflow_run:
+    workflows: ["CI/CD Pipeline"]
+    types: [completed]
+
+jobs:
+  analyze-failure:
+    name: Analyze Build Failure
+    runs-on: ubuntu-latest
+    # Only run when the pipeline actually failed
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: write
+      checks: write
+
+    steps:
+      - name: Get failed job logs
+        id: logs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get the ID of the failed workflow run
+          RUN_ID=${{ github.event.workflow_run.id }}
+
+          # Fetch the logs from GitHub API
+          LOGS=$(gh api \
+            /repos/${{ github.repository }}/actions/runs/$RUN_ID/logs \
+            --accept application/vnd.github+json 2>/dev/null | head -c 6000 || \
+            echo "Could not fetch logs automatically")
+
+          echo "logs<<EOF" >> $GITHUB_OUTPUT
+          echo "$LOGS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+
+      - name: AI Root Cause Analysis
+        id: analysis
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          ANALYSIS=$(curl -s https://api.openai.com/v1/chat/completions \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $OPENAI_API_KEY" \
+            -d '{
+              "model": "gpt-4o-mini",
+              "max_tokens": 800,
+              "messages": [
+                {
+                  "role": "system",
+                  "content": "You are a senior DevOps engineer analyzing a failed CI/CD pipeline. Given the build logs, identify the root cause of the failure and provide clear steps to fix it. Be specific and actionable. Format in markdown. Keep it under 400 words."
+                },
+                {
+                  "role": "user",
+                  "content": "This CI/CD pipeline failed. Here are the logs:\n\n```\n${{ steps.logs.outputs.logs }}\n```\n\nWhat caused the failure and how do I fix it?"
+                }
+              ]
+            }' | jq -r '.choices[0].message.content')
+
+          echo "$ANALYSIS" > analysis.md
+          echo "Analysis generated successfully"
+
+      - name: Post failure analysis as check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const analysis = fs.readFileSync('analysis.md', 'utf8');
+            const runId = '${{ steps.logs.outputs.run_id }}';
+
+            // Post the analysis as a commit check
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: '🤖 AI Failure Analysis',
+              head_sha: context.event.workflow_run.head_sha,
+              status: 'completed',
+              conclusion: 'neutral',
+              output: {
+                title: 'AI Root Cause Analysis',
+                summary: `The CI/CD pipeline failed. Here is the AI analysis:`,
+                text: analysis
+              }
+            });
