@@ -107,3 +107,4 @@ IdpPlatform/
 | Task 2 | GitHub integration — auto repo + Dockerfile + CI | ✅ Done |
 | Task 3 | Background worker + Kubernetes integration | ✅ Done |
 | Task 4 | SignalR real-time status + dashboard UI | ✅ Done |
+| CI/CD | GitHub Actions — build, test, Docker image push on every commit | ✅ Done |
