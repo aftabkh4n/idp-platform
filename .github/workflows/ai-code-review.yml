@@ -1,10 +1,8 @@
 name: AI Code Review
 
-# Runs on every pull request
 on:
   pull_request:
     types: [opened, synchronize]
-    # Only review actual code changes, not docs
     paths:
       - 'src/**/*.cs'
       - 'src/**/*.csproj'
@@ -13,8 +11,6 @@ jobs:
   ai-review:
     name: AI Code Review
     runs-on: ubuntu-latest
-
-    # Needs write access to post comments on the PR
     permissions:
       contents: read
       pull-requests: write
@@ -23,80 +19,86 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          # Fetch the full history so we can see what changed
           fetch-depth: 0
-
-      - name: Get changed files
-        id: changed
-        run: |
-          # Get list of changed .cs files in this PR
-          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD \
-            | grep '\.cs$' | head -20)
-          echo "files<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGED" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Get diff of changed files
-        id: diff
-        run: |
-          # Get the actual code changes (diff)
-          DIFF=$(git diff origin/${{ github.base_ref }}...HEAD \
-            -- '*.cs' | head -c 8000)
-          echo "diff<<EOF" >> $GITHUB_OUTPUT
-          echo "$DIFF" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: AI Code Review
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           BASE_REF: ${{ github.base_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
         run: |
           python3 << 'PYTHON'
           import urllib.request
           import json
           import os
+          import subprocess
 
           base_ref = os.environ['BASE_REF']
+          pr_number = os.environ['PR_NUMBER']
+          repo = os.environ['REPO']
+          token = os.environ['GITHUB_TOKEN']
+          api_key = os.environ['OPENAI_API_KEY']
 
-          # Get the diff using the base ref from environment
-          diff = os.popen(
-              f"git diff origin/{base_ref}...HEAD -- '*.cs' | head -c 6000"
-          ).read()
-
-          if not diff.strip():
-              open('review.md', 'w').write('No C# code changes detected in this PR.')
-              print("No diff found")
-              exit(0)
+          # Get the diff
+          result = subprocess.run(
+              ['git', 'diff', f'origin/{base_ref}...HEAD', '--', '*.cs'],
+              capture_output=True, text=True
+          )
+          diff = result.stdout[:6000]
 
           print(f"Diff length: {len(diff)} chars")
 
-          payload = {
-              "model": "gpt-4o-mini",
-              "max_tokens": 1000,
-              "messages": [
-                  {
-                      "role": "system",
-                      "content": "You are a senior .NET engineer reviewing a pull request. Give concise actionable feedback on correctness, security, performance, and .NET best practices. Use markdown formatting."
-                  },
-                  {
-                      "role": "user",
-                      "content": f"Review this pull request diff:\n\n```diff\n{diff}\n```"
-                  }
-              ]
-          }
+          if not diff.strip():
+              review = "No C# code changes detected in this PR."
+          else:
+              # Call OpenAI
+              payload = {
+                  "model": "gpt-4o-mini",
+                  "max_tokens": 1000,
+                  "messages": [
+                      {
+                          "role": "system",
+                          "content": "You are a senior .NET engineer reviewing a pull request. Give concise actionable feedback on correctness, security, performance, and .NET best practices. Use markdown formatting. Keep it under 500 words."
+                      },
+                      {
+                          "role": "user",
+                          "content": f"Review this pull request diff:\n\n```diff\n{diff}\n```"
+                      }
+                  ]
+              }
 
-          req = urllib.request.Request(
-              'https://api.openai.com/v1/chat/completions',
-              data=json.dumps(payload).encode(),
+              req = urllib.request.Request(
+                  'https://api.openai.com/v1/chat/completions',
+                  data=json.dumps(payload).encode(),
+                  headers={
+                      'Content-Type': 'application/json',
+                      'Authorization': f'Bearer {api_key}'
+                  }
+              )
+
+              with urllib.request.urlopen(req) as resp:
+                  data = json.loads(resp.read())
+                  review = data['choices'][0]['message']['content']
+                  print("OpenAI review received successfully")
+
+          # Post comment to PR via GitHub API
+          comment = f"## 🤖 AI Code Review\n\n{review}\n\n---\n*Generated by GPT-4o-mini. Always review AI suggestions critically.*"
+
+          comment_payload = json.dumps({"body": comment}).encode()
+
+          comment_req = urllib.request.Request(
+              f'https://api.github.com/repos/{repo}/issues/{pr_number}/comments',
+              data=comment_payload,
               headers={
                   'Content-Type': 'application/json',
-                  'Authorization': f"Bearer {os.environ['OPENAI_API_KEY']}"
+                  'Authorization': f'Bearer {token}',
+                  'Accept': 'application/vnd.github+json',
+                  'X-GitHub-Api-Version': '2022-11-28'
               }
           )
 
-          with urllib.request.urlopen(req) as resp:
-              data = json.loads(resp.read())
-              review = data['choices'][0]['message']['content']
-              open('review.md', 'w').write(review)
-              print("Review written successfully")
+          with urllib.request.urlopen(comment_req) as resp:
+              print(f"Comment posted successfully: {resp.status}")
           PYTHON
