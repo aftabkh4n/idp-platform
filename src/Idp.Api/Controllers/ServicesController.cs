@@ -55,4 +55,29 @@ public async Task<IActionResult> Create([FromBody] ServiceRequest request)
         var service = await db.Services.FindAsync(id);
         return service is null ? NotFound() : Ok(service);
     }
+
+    [HttpGet("stats")]
+    public async Task<IActionResult> GetStats()
+    {
+        var services = await db.Services.ToListAsync();
+
+        var stats = new
+        {
+            Total = services.Count,
+            ByStatus = services
+                .GroupBy(s => s.Status.ToString())
+                .ToDictionary(g => g.Key, g => g.Count()),
+            ByLanguage = services
+                .GroupBy(s => s.Language)
+                .ToDictionary(g => g.Key, g => g.Count()),
+            RecentlyProvisioned = services
+                .Where(s => s.CreatedAt >= DateTime.UtcNow.AddDays(-7))
+                .Count(),
+            LastProvisionedAt = services
+                .OrderByDescending(s => s.CreatedAt)
+                .FirstOrDefault()?.CreatedAt
+        };
+
+        return Ok(stats);
+    }
 }
