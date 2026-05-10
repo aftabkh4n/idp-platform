@@ -14,4 +14,4 @@ src/Idp.Api/appsettings.json
 
 # OS
 .DS_Store
-Thumbs.db
+Thumbs.db.claude/
