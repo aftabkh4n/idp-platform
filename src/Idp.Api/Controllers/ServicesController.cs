@@ -56,6 +56,38 @@ public async Task<IActionResult> Create([FromBody] ServiceRequest request)
         return service is null ? NotFound() : Ok(service);
     }
 
+    [HttpGet("catalog")]
+    public async Task<IActionResult> GetCatalog()
+    {
+        var services = await db.Services
+            .OrderByDescending(s => s.CreatedAt)
+            .ToListAsync();
+
+        return Ok(services.Select(ToCatalogItem));
+    }
+
+    [HttpGet("catalog/{owner}")]
+    public async Task<IActionResult> GetCatalogByOwner(string owner)
+    {
+        var services = await db.Services
+            .Where(s => s.Owner.ToLower() == owner.ToLower())  // ToLower used for EF/SQL translation
+            .OrderByDescending(s => s.CreatedAt)
+            .ToListAsync();
+
+        return Ok(services.Select(ToCatalogItem));
+    }
+
+    private static object ToCatalogItem(ProvisionedService s) => new
+    {
+        s.Name,
+        s.Status,
+        s.Owner,
+        s.Language,
+        s.RepoUrl,
+        K8sDeploymentName = s.Name,
+        s.CreatedAt
+    };
+
     [HttpGet("stats")]
     public async Task<IActionResult> GetStats()
     {

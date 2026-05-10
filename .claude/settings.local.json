@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find \"d:/Projects\" -maxdepth 4 -name \"*.csproj\" 2>/dev/null | head -30)",
+      "Read(//d/Projects/**)"
+    ]
+  }
+}

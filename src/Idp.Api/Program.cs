@@ -2,6 +2,7 @@ using Idp.Api.Hubs;
 using Idp.Api.Services;
 using Idp.Core.Interfaces;
 using Idp.Core.Models;
+using Idp.Infrastructure.AI;
 using Idp.Infrastructure.Data;
 using Idp.Infrastructure.GitHub;
 using Idp.Infrastructure.Kubernetes;
@@ -26,9 +27,12 @@ builder.Services.AddSignalR();
 // GitHub + Kubernetes + SignalR notifier
 builder.Services.Configure<GitHubSettings>(
     builder.Configuration.GetSection("GitHub"));
-builder.Services.AddScoped<IGitHubService,    GitHubService>();
+builder.Services.Configure<AnthropicSettings>(
+    builder.Configuration.GetSection("Anthropic"));
+builder.Services.AddScoped<IReadmeGenerator,   AnthropicReadmeGenerator>();
+builder.Services.AddScoped<IGitHubService,     GitHubService>();
 builder.Services.AddScoped<IKubernetesService, KubernetesService>();
-builder.Services.AddScoped<IStatusNotifier,   SignalRStatusNotifier>();
+builder.Services.AddScoped<IStatusNotifier,    SignalRStatusNotifier>();
 
 // Background worker
 builder.Services.AddHostedService<ProvisioningWorker>();

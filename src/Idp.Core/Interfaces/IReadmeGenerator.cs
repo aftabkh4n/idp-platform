@@ -1,9 +1,8 @@
 namespace Idp.Core.Interfaces;
 
-public interface IGitHubService
+public interface IReadmeGenerator
 {
-    // Returns the new repo's URL, e.g. https://github.com/you/payments-api
-    Task<string> CreateServiceRepoAsync(
+    Task<string> GenerateReadmeAsync(
         string serviceName,
         string language,
         string owner,

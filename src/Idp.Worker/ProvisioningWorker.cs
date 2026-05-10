@@ -65,7 +65,7 @@ public class ProvisioningWorker(
                 service.Id, service.Name, service.Status);
 
             var repoUrl = await gitHub.CreateServiceRepoAsync(
-                service.Name, service.Language,
+                service.Name, service.Language, service.Owner,
                 service.Description ?? $"{service.Name} service", ct);
 
             service.RepoUrl   = repoUrl;

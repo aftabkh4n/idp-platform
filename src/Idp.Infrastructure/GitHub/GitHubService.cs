@@ -8,6 +8,7 @@ namespace Idp.Infrastructure.GitHub;
 
 public class GitHubService(
     IOptions<GitHubSettings> settings,
+    IReadmeGenerator readmeGenerator,
     ILogger<GitHubService> logger) : IGitHubService
 {
     private readonly GitHubSettings _settings = settings.Value;
@@ -15,6 +16,7 @@ public class GitHubService(
     public async Task<string> CreateServiceRepoAsync(
     string serviceName,
     string language,
+    string owner,
     string description,
     CancellationToken ct = default)
     {
@@ -63,7 +65,10 @@ public class GitHubService(
 
         logger.LogInformation("CI workflow committed");
 
-        // 4. Update the auto-generated README (need its SHA first)
+        // 4. Generate README via AI and update the auto-initialised file (SHA required)
+        var readmeContent = await readmeGenerator.GenerateReadmeAsync(
+            serviceName, language, owner, description, ct);
+
         var existingReadme = await client.Repository.Content
             .GetAllContents(_settings.Organisation, serviceName, "README.md");
 
@@ -72,8 +77,8 @@ public class GitHubService(
             serviceName,
             "README.md",
             new UpdateFileRequest(
-                "docs: add README",
-                GetReadme(serviceName, description),
+                "docs: add AI-generated README",
+                readmeContent,
                 existingReadme[0].Sha));
 
         logger.LogInformation("README updated");
@@ -157,23 +162,4 @@ public class GitHubService(
             run: test -f Dockerfile && echo "Dockerfile found" || echo "No Dockerfile yet"
     """;
 
-    private static string GetReadme(string serviceName, string description) => $"""
-        # {serviceName}
-
-        {description}
-
-        ## Getting started
-        ```bash
-        docker build -t {serviceName} .
-        docker run -p 8080:8080 {serviceName}
-        ```
-
-        ## CI/CD
-
-        This repo has a GitHub Actions pipeline that builds and smoke-tests
-        the Docker image on every push to main.
-
-        ---
-        *Provisioned by [IDP Platform](https://github.com/aftabkh4n/idp-platform)*
-        """;
 }
