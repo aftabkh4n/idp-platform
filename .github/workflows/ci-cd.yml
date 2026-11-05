@@ -44,11 +44,54 @@ jobs:
         run: dotnet test --no-build --configuration Release --verbosity normal
         continue-on-error: true  # won't fail the pipeline if no tests exist
 
+  # ── Job 1b: Frontend (web/) ──────────────────────────────────────
+  web:
+    name: Frontend — typecheck, unit and e2e tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install packages
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run lint
+
+      - name: Unit tests (Vitest)
+        run: npm test
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      # Builds the app and runs it against a mocked API + SignalR hub
+      - name: E2E tests (Playwright)
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: web/test-results/
+          retention-days: 7
+
   # ── Job 2: Build and Push Docker Image ───────────────────────────
   docker:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
-    needs: build-and-test  # only runs if build-and-test passes
+    needs: [build-and-test, web]  # only runs if both pass
     # Only push the image on pushes to main, not on pull requests
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
