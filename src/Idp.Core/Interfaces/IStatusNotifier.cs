@@ -6,7 +6,8 @@ public interface IStatusNotifier
         Guid   serviceId,
         string serviceName,
         string status,
-        string? repoUrl     = null,
-        string? serviceUrl  = null,
-        string? errorMessage = null);
+        string? repoUrl      = null,
+        string? serviceUrl   = null,
+        string? errorMessage = null,
+        string? failedStep   = null);
 }

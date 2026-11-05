@@ -12,7 +12,8 @@ public class SignalRStatusNotifier(IHubContext<ProvisioningHub> hubContext) : IS
         string status,
         string? repoUrl      = null,
         string? serviceUrl   = null,
-        string? errorMessage = null)
+        string? errorMessage = null,
+        string? failedStep   = null)
     {
         // Push to ALL connected browser clients
         await hubContext.Clients.All.SendAsync("StatusChanged", new
@@ -23,6 +24,7 @@ public class SignalRStatusNotifier(IHubContext<ProvisioningHub> hubContext) : IS
             RepoUrl      = repoUrl,
             ServiceUrl   = serviceUrl,
             ErrorMessage = errorMessage,
+            FailedStep   = failedStep,
             UpdatedAt    = DateTime.UtcNow
         });
     }

@@ -14,6 +14,9 @@ public class ProvisionedService
     public string? ServiceUrl { get; set; }
     public string? ErrorMessage { get; set; }
 
+    // The step that was running when provisioning failed, e.g. "deploying_k8s"
+    public string? FailedStep { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 }

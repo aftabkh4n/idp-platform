@@ -162,7 +162,8 @@
     }
 
     .status-queued       { background: #1e2535; color: #64748b; }
-    .status-creating_repo { background: #1e3a5f; color: #60a5fa; }
+    .status-creating_repo, .status-adding_dockerfile,
+    .status-adding_ci, .status-generating_readme { background: #1e3a5f; color: #60a5fa; }
     .status-deploying_k8s { background: #2d1b69; color: #a78bfa; }
     .status-deployed     { background: #14532d; color: #4ade80; }
     .status-failed       { background: #450a0a; color: #f87171; }
@@ -244,8 +245,11 @@ const services = {};
 
 const statusConfig = {
   queued:        { label: 'Queued',          icon: '⏳', progress: 5,   color: '#64748b' },
-  creating_repo: { label: 'Creating repo',   icon: '📁', progress: 35,  color: '#60a5fa' },
-  deploying_k8s: { label: 'Deploying',       icon: '☸️',  progress: 70,  color: '#a78bfa' },
+  creating_repo: { label: 'Creating repo',   icon: '📁', progress: 15,  color: '#60a5fa' },
+  adding_dockerfile: { label: 'Adding Dockerfile', icon: '🐳', progress: 30, color: '#60a5fa' },
+  adding_ci:     { label: 'Adding CI',       icon: '⚙️', progress: 45,  color: '#60a5fa' },
+  generating_readme: { label: 'Writing README', icon: '📝', progress: 60, color: '#60a5fa' },
+  deploying_k8s: { label: 'Deploying',       icon: '☸️',  progress: 80,  color: '#a78bfa' },
   deployed:      { label: 'Deployed',        icon: '✅', progress: 100, color: '#4ade80' },
   failed:        { label: 'Failed',          icon: '❌', progress: 100, color: '#f87171' },
 };

@@ -55,56 +55,51 @@ public class ProvisioningWorker(
     {
         logger.LogInformation("Starting provisioning for {Name}", service.Name);
 
-        try
+        // Persist the new status and push it to connected browsers
+        async Task SetStatusAsync(string status)
         {
-            // Step 1 — GitHub
-            service.Status    = ProvisioningStatus.CreatingRepo;
+            service.Status    = status;
             service.UpdatedAt = DateTime.UtcNow;
-            await db.SaveChangesAsync(ct);
-            await notifier.NotifyStatusChangedAsync(
-                service.Id, service.Name, service.Status);
-
-            var repoUrl = await gitHub.CreateServiceRepoAsync(
-                service.Name, service.Language, service.Owner,
-                service.Description ?? $"{service.Name} service", ct);
-
-            service.RepoUrl   = repoUrl;
-            service.UpdatedAt = DateTime.UtcNow;
-            await db.SaveChangesAsync(ct);
-            await notifier.NotifyStatusChangedAsync(
-                service.Id, service.Name, service.Status, repoUrl: repoUrl);
-
-            // Step 2 — Kubernetes
-            service.Status    = ProvisioningStatus.DeployingK8s;
-            service.UpdatedAt = DateTime.UtcNow;
-            await db.SaveChangesAsync(ct);
-            await notifier.NotifyStatusChangedAsync(
-                service.Id, service.Name, service.Status, repoUrl: repoUrl);
-
-            var serviceUrl = await kubernetes.DeployServiceAsync(
-                service.Name, repoUrl, ct);
-
-            service.ServiceUrl = serviceUrl;
-            service.Status     = ProvisioningStatus.Deployed;
-            service.UpdatedAt  = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
             await notifier.NotifyStatusChangedAsync(
                 service.Id, service.Name, service.Status,
-                repoUrl: repoUrl, serviceUrl: serviceUrl);
+                repoUrl: service.RepoUrl, serviceUrl: service.ServiceUrl);
+        }
+
+        try
+        {
+            // Steps 1-4 — GitHub repo, Dockerfile, CI workflow, README
+            service.RepoUrl = await gitHub.CreateServiceRepoAsync(
+                service.Name, service.Language, service.Owner,
+                service.Description ?? $"{service.Name} service",
+                onStepStarted: SetStatusAsync,
+                ct: ct);
+
+            // Step 5 — Kubernetes
+            await SetStatusAsync(ProvisioningStatus.DeployingK8s);
+
+            service.ServiceUrl = await kubernetes.DeployServiceAsync(
+                service.Name, service.RepoUrl, ct);
+
+            await SetStatusAsync(ProvisioningStatus.Deployed);
 
             logger.LogInformation("Provisioning complete for {Name}", service.Name);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Provisioning failed for {Name}", service.Name);
+            logger.LogError(ex, "Provisioning failed for {Name} during {Step}",
+                service.Name, service.Status);
 
+            service.FailedStep   = service.Status;
             service.Status       = ProvisioningStatus.Failed;
             service.ErrorMessage = ex.Message;
             service.UpdatedAt    = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
             await notifier.NotifyStatusChangedAsync(
                 service.Id, service.Name, service.Status,
-                errorMessage: ex.Message);
+                repoUrl: service.RepoUrl,
+                errorMessage: ex.Message,
+                failedStep: service.FailedStep);
         }
     }
 }

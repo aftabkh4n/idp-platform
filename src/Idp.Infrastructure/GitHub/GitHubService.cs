@@ -18,8 +18,11 @@ public class GitHubService(
     string language,
     string owner,
     string description,
+    Func<string, Task>? onStepStarted = null,
     CancellationToken ct = default)
     {
+        Task StepAsync(string step) => onStepStarted?.Invoke(step) ?? Task.CompletedTask;
+
         var client = new GitHubClient(new ProductHeaderValue("idp-platform"))
         {
             Credentials = new Credentials(_settings.Token)
@@ -31,6 +34,7 @@ public class GitHubService(
         logger.LogInformation("Creating GitHub repo: {ServiceName}", serviceName);
 
         // 1. Create the repository
+        await StepAsync(ProvisioningStatus.CreatingRepo);
         var repo = await client.Repository.Create(new NewRepository(serviceName)
         {
             Description = description,
@@ -44,6 +48,7 @@ public class GitHubService(
         await Task.Delay(2000, ct);
 
         // 2. Add the Dockerfile
+        await StepAsync(ProvisioningStatus.AddingDockerfile);
         await client.Repository.Content.CreateFile(
             _settings.Organisation,
             serviceName,
@@ -55,6 +60,7 @@ public class GitHubService(
         logger.LogInformation("Dockerfile committed");
 
         // 3. Add the GitHub Actions CI workflow
+        await StepAsync(ProvisioningStatus.AddingCi);
         await client.Repository.Content.CreateFile(
             _settings.Organisation,
             serviceName,
@@ -66,6 +72,7 @@ public class GitHubService(
         logger.LogInformation("CI workflow committed");
 
         // 4. Generate README via AI and update the auto-initialised file (SHA required)
+        await StepAsync(ProvisioningStatus.GeneratingReadme);
         var readmeContent = await readmeGenerator.GenerateReadmeAsync(
             serviceName, language, owner, description, ct);
 

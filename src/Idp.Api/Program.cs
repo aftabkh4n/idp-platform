@@ -24,6 +24,16 @@ builder.Services.AddOpenApi();
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
 
+// Let the Next.js frontend (web/) call the API and hub from another origin.
+// SignalR needs AllowCredentials, which rules out AllowAnyOrigin.
+var frontendOrigins = builder.Configuration
+    .GetSection("Frontend:Origins").Get<string[]>() ?? ["http://localhost:3000"];
+builder.Services.AddCors(opt => opt.AddPolicy("frontend", policy =>
+    policy.WithOrigins(frontendOrigins)
+          .AllowAnyHeader()
+          .AllowAnyMethod()
+          .AllowCredentials()));
+
 // GitHub + Kubernetes + SignalR notifier
 builder.Services.Configure<GitHubSettings>(
     builder.Configuration.GetSection("GitHub"));
@@ -51,6 +61,8 @@ app.MapScalarApiReference();
 // Serve the dashboard at http://localhost:5107/
 app.UseDefaultFiles();
 app.UseStaticFiles();
+
+app.UseCors("frontend");
 
 // SignalR hub endpoint
 app.MapHub<ProvisioningHub>("/hubs/provisioning");
